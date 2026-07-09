@@ -1,0 +1,43 @@
+services:
+  web:
+    build: .
+    ports:
+      - "${APP_PORT:-8080}:80"
+    environment:
+      APP_INSTALLED: "1"
+      APP_NAME: "ProSignage"
+      APP_TIMEZONE: "Europe/Madrid"
+      APP_BASE_URL: "http://localhost:${APP_PORT:-8080}"
+      APP_ADMIN_NAME: "${APP_ADMIN_NAME:-Administrador}"
+      APP_ADMIN_EMAIL: "${APP_ADMIN_EMAIL:-}"
+      APP_ADMIN_PASSWORD: "${APP_ADMIN_PASSWORD:-}"
+      APP_LOGO_URL: "https://www.entelsat.com/wp-content/uploads/2018/11/logo_entelsat_144.png"
+      DB_HOST: "db"
+      DB_PORT: "3306"
+      DB_DATABASE: "prosignage"
+      DB_USERNAME: "prosignage"
+      DB_PASSWORD: "prosignage"
+      SESSION_TIMEOUT: "0"
+      SESSION_PERSIST_DAYS: "180"
+      AUTO_INIT_DB: "1"
+    volumes:
+      - ./storage:/var/www/html/storage
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: "prosignage"
+      MYSQL_USER: "prosignage"
+      MYSQL_PASSWORD: "prosignage"
+      MYSQL_ROOT_PASSWORD: "root"
+    ports:
+      - "${DB_FORWARD_PORT:-3308}:3306"
+    volumes:
+      - prosignage_mysql_data:/var/lib/mysql
+
+volumes:
+  prosignage_mysql_data:

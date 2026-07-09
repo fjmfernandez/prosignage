@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redirigiendo...</title>
+</head>
+<body>
+  <script>
+    var query = window.location.search || '';
+    window.location.replace('player.php' + query);
+  </script>
+  <p>Redirigiendo a <a href="player.php">player.php</a>...</p>
+</body>
+</html>

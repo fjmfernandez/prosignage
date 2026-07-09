@@ -1,0 +1,21 @@
+.DS_Store
+Thumbs.db
+*.log
+.env
+.tmp-*
+node_modules/
+vendor/
+files/
+funciona/
+v2/
+version freekiosk/
+playerv1
+sw.js
+storage/uploads/*
+storage/logs/*
+storage/cache/*
+!storage/uploads/.gitkeep
+!storage/logs/.gitkeep
+!storage/cache/.gitkeep
+outputs/
+work/
