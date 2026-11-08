@@ -334,10 +334,15 @@
     if (els.ticker.style.display === 'none') return;
     const windowWidth = els.tickerWindow.clientWidth;
     if (windowWidth < 1) return;
-    els.tickerTxt.style.minWidth = '0px';
-    els.tickerClone.style.minWidth = '0px';
-    const segmentWidth = Math.max(windowWidth, els.tickerTxt.scrollWidth);
-    for (const copy of [els.tickerTxt, els.tickerClone]) copy.style.minWidth = `${segmentWidth}px`;
+    const message = els.tickerTxt.dataset.message || 'Sin avisos';
+    const cycle = `${message}\u00a0\u00a0\u00a0 ✦ \u00a0\u00a0\u00a0`;
+    els.tickerTxt.textContent = cycle;
+    const cycleWidth = els.tickerTxt.scrollWidth;
+    const copies = cycleWidth >= windowWidth ? 1 : Math.ceil(windowWidth / Math.max(cycleWidth, 1)) + 1;
+    const segment = cycle.repeat(copies);
+    els.tickerTxt.textContent = segment;
+    els.tickerClone.textContent = segment;
+    const segmentWidth = els.tickerTxt.scrollWidth;
     const configuredSpeed = Number(model?.widgets?.ticker?.speed);
     const secondsPerScreen = Number.isFinite(configuredSpeed) ? Math.max(8, Math.min(120, configuredSpeed)) : 18;
     els.tickerTrack.style.setProperty('--ticker-duration', `${secondsPerScreen * segmentWidth / windowWidth}s`);
@@ -467,8 +472,8 @@
 
       els.ticker.style.display = "";
       els.tickerLabel.textContent = widgets.ticker.mode === 'rss' ? 'NOTICIAS' : 'AVISOS';
+      els.tickerTxt.dataset.message = tickerText || 'Sin avisos';
       for (const copy of [els.tickerTxt, els.tickerClone]) {
-        copy.textContent = tickerText || 'Sin avisos';
         copy.style.fontSize = `${Number(widgets.ticker.fontSize || 14)}px`;
         copy.style.color = widgets.ticker.color || "#ffffff";
       }
