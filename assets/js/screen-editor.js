@@ -13,6 +13,24 @@
   const addUrlButton = document.getElementById("add-url-slide");
   const mediaUploadForm = document.getElementById("media-upload-form");
   const logoUploadForm = document.getElementById("logo-upload-form");
+  const preview = {
+    stage: document.getElementById("editor-stage"),
+    content: document.getElementById("preview-content"),
+    title: document.getElementById("preview-title"),
+    format: document.getElementById("preview-format"),
+    logo: document.getElementById("preview-logo"),
+    clock: document.getElementById("preview-clock"),
+    rss: document.getElementById("preview-rss"),
+    bottom: document.getElementById("preview-bottom"),
+    weather: document.getElementById("preview-weather"),
+    ticker: document.getElementById("preview-ticker"),
+    tickerText: document.getElementById("preview-ticker-text"),
+    label: document.getElementById("preview-slide-label"),
+    previous: document.getElementById("preview-prev"),
+    next: document.getElementById("preview-next"),
+  };
+  let previewIndex = 0;
+  let renderedSlideKey = "";
 
   const fields = {
     name: document.getElementById("screen-name"),
@@ -88,6 +106,77 @@
     };
   }
 
+  function renderPreview() {
+    const slides = state.slides;
+    previewIndex = slides.length ? ((previewIndex % slides.length) + slides.length) % slides.length : 0;
+    const slide = slides[previewIndex];
+    const slideKey = slide ? JSON.stringify([previewIndex, slide.url, slide.type, slide.fit]) : "empty";
+    preview.title.textContent = fields.name.value.trim() || "Pantalla sin nombre";
+    preview.stage.classList.toggle("portrait", fields.orientation.value === "portrait");
+    preview.stage.classList.toggle("landscape", fields.orientation.value !== "portrait");
+    preview.format.textContent = fields.orientation.value === "portrait" ? "9:16" : "16:9";
+    preview.label.textContent = slide ? `${previewIndex + 1} / ${slides.length} · ${slide.name || "Sin nombre"}` : "Sin contenido";
+    preview.previous.disabled = !slides.length;
+    preview.next.disabled = !slides.length;
+    playlistEl.querySelectorAll(".playlist-card").forEach((card) => {
+      card.classList.toggle("is-previewing", Number(card.dataset.index) === previewIndex);
+    });
+
+    if (renderedSlideKey !== slideKey) {
+      renderedSlideKey = slideKey;
+      preview.content.replaceChildren();
+      if (!slide || !slide.url) {
+        const empty = document.createElement("div");
+        empty.className = "preview-empty";
+        empty.textContent = "Agrega un contenido para ver la pantalla";
+        preview.content.append(empty);
+      } else {
+        let media;
+        if (slide.type === "video") {
+          media = document.createElement("video");
+          media.muted = true;
+          media.loop = true;
+          media.autoplay = true;
+          media.playsInline = true;
+          media.preload = "metadata";
+        } else if (slide.type === "web") {
+          media = document.createElement("iframe");
+          media.title = slide.name || "Vista previa web";
+          media.setAttribute("sandbox", "allow-scripts allow-forms");
+        } else {
+          media = document.createElement("img");
+          media.alt = slide.name || "Vista previa";
+        }
+        media.src = slide.url;
+        if (slide.type !== "web") media.style.objectFit = slide.fit || "contain";
+        preview.content.append(media);
+      }
+    }
+
+    const widgets = collectWidgets();
+    preview.clock.hidden = !widgets.clock.show;
+    preview.clock.className = `preview-clock ${widgets.clock.pos} size-${widgets.clock.size}`;
+    preview.clock.style.color = widgets.clock.color;
+    preview.clock.textContent = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+
+    preview.logo.hidden = !widgets.logo.show || !widgets.logo.url;
+    if (!preview.logo.hidden) preview.logo.src = widgets.logo.url;
+    preview.logo.className = `preview-logo ${widgets.logo.pos}`;
+    preview.logo.style.width = `${widgets.logo.size}%`;
+
+    preview.rss.hidden = !widgets.rssSidebar.show;
+    preview.rss.className = `preview-rss ${widgets.rssSidebar.pos}`;
+    preview.rss.textContent = widgets.rssSidebar.url ? `Noticias RSS · ${widgets.rssSidebar.url}` : "Noticias RSS";
+
+    preview.weather.hidden = !widgets.weather.show;
+    preview.weather.textContent = widgets.weather.city ? `☀ Tiempo · ${widgets.weather.city}` : "☀ Tiempo";
+    preview.ticker.hidden = !widgets.ticker.active;
+    preview.tickerText.textContent = widgets.ticker.mode === "rss" ? "Noticias RSS" : (widgets.ticker.text || "Marquesina");
+    preview.tickerText.style.color = widgets.ticker.color;
+    preview.tickerText.style.fontSize = `${Math.max(10, widgets.ticker.fontSize) * 0.7}px`;
+    preview.bottom.hidden = preview.weather.hidden && preview.ticker.hidden;
+  }
+
   function renderDaySelector(slide, index) {
     const dayLabels = ["D", "L", "M", "X", "J", "V", "S"];
     return dayLabels
@@ -106,6 +195,7 @@
   function renderPlaylist() {
     if (!state.slides.length) {
       playlistEl.innerHTML = `<div class="empty-card">No hay slides todavia.</div>`;
+      renderPreview();
       return;
     }
 
@@ -167,6 +257,7 @@
         `;
       })
       .join("");
+    renderPreview();
   }
 
   function escapeHtml(value) {
@@ -269,6 +360,11 @@
   });
 
   playlistEl.addEventListener("click", (event) => {
+    const card = event.target.closest(".playlist-card");
+    if (card) {
+      previewIndex = Number(card.dataset.index);
+      renderPreview();
+    }
     const action = event.target.closest("[data-action]");
     if (!action) {
       return;
@@ -324,7 +420,35 @@
     }
 
     state.slides[index][field] = field === "duration" ? Number(target.value || 10) : target.value;
+    renderPreview();
   });
+
+  playlistEl.addEventListener("input", (event) => {
+    const target = event.target;
+    const index = Number(target.dataset.index ?? -1);
+    const field = target.dataset.field;
+    if (!field || index < 0 || !state.slides[index]) return;
+    state.slides[index][field] = field === "duration" ? Number(target.value || 10) : target.value;
+    renderPreview();
+  });
+
+  preview.previous.addEventListener("click", () => {
+    previewIndex -= 1;
+    renderPreview();
+  });
+  preview.next.addEventListener("click", () => {
+    previewIndex += 1;
+    renderPreview();
+  });
+  document.querySelectorAll(".editor-sidebar input, .editor-sidebar select, .editor-sidebar textarea").forEach((field) => {
+    field.addEventListener("input", renderPreview);
+    field.addEventListener("change", renderPreview);
+  });
+  window.setInterval(() => {
+    if (!preview.clock.hidden) {
+      preview.clock.textContent = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date());
+    }
+  }, 1000);
 
   saveButton.addEventListener("click", async () => {
     const originalLabel = saveButton.textContent;
@@ -368,6 +492,7 @@
       await uploadFile(logoUploadForm, (asset) => {
         fields.logoUrl.value = asset.url;
         fields.logoShow.checked = true;
+        renderPreview();
       });
     } catch (error) {
       alert(error.message);
