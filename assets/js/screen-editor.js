@@ -7,9 +7,11 @@
   const endpoints = window.PROSIGNAGE_ENDPOINTS || {};
   const csrf = window.PROSIGNAGE_CSRF || "";
   const state = JSON.parse(JSON.stringify(initial));
+  const updateChannel = 'BroadcastChannel' in window ? new BroadcastChannel('prosignage-screen-updates') : null;
 
   const playlistEl = document.getElementById("playlist-editor");
   const saveButton = document.getElementById("save-screen");
+  const publishStatus = document.getElementById("publish-status");
   const addUrlButton = document.getElementById("add-url-slide");
   const mediaUploadForm = document.getElementById("media-upload-form");
   const logoUploadForm = document.getElementById("logo-upload-form");
@@ -288,6 +290,7 @@
     if (!response.ok || !data.ok) {
       throw new Error(data.message || "No se pudo guardar la pantalla.");
     }
+    updateChannel?.postMessage({ type: 'screen-saved', screenId: state.id });
     return data;
   }
 
@@ -436,16 +439,19 @@
     const originalLabel = saveButton.textContent;
     saveButton.disabled = true;
     saveButton.textContent = "Guardando...";
+    publishStatus.textContent = 'Publicando cambios...';
 
     try {
       await saveScreen();
-      saveButton.textContent = "Guardado";
+      saveButton.textContent = "Publicado";
+      publishStatus.textContent = 'Enviado a las pantallas conectadas.';
       setTimeout(() => {
         saveButton.textContent = originalLabel;
       }, 1500);
     } catch (error) {
       alert(error.message);
       saveButton.textContent = originalLabel;
+      publishStatus.textContent = 'No se pudo publicar.';
     } finally {
       saveButton.disabled = false;
     }

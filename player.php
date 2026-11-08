@@ -18,7 +18,7 @@ if ($previewMode) {
     <meta name="mobile-web-app-capable" content="yes">
     <title><?= e(app_name()) ?> Player</title>
     <link rel="icon" href="<?= e(app_logo_url()) ?>" type="image/png">
-    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=player-preview-2')) ?>">
+    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=live-weather-3')) ?>">
 </head>
 <body class="player-body<?= $previewMode ? ' player-preview-mode' : '' ?>">
     <div id="stage" class="player-stage">
@@ -27,7 +27,15 @@ if ($previewMode) {
         <div id="clock" class="p-clock" style="display:none"></div>
         <div id="bar" class="bottom-bar" style="display:none">
             <div id="weather" class="weather" style="display:none"></div>
-            <div id="ticker" class="ticker" style="display:none"><div id="tickerTxt" class="ticker-move"></div></div>
+            <div id="ticker" class="ticker" style="display:none">
+                <span id="tickerLabel" class="ticker-label">AVISOS</span>
+                <div id="tickerWindow" class="ticker-window">
+                    <div id="tickerTrack" class="ticker-track">
+                        <span id="tickerTxt" class="ticker-copy"></span>
+                        <span id="tickerClone" class="ticker-copy" aria-hidden="true"></span>
+                    </div>
+                </div>
+            </div>
         </div>
         <div id="status" class="status-badge"><span id="dot"></span><span id="hint">offline</span></div>
         <div id="fallback" class="fallback-screen" style="display:none">
@@ -50,6 +58,6 @@ if ($previewMode) {
         'serviceWorkerUrl' => app_url('sw.js?v=3'),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
-    <script src="<?= e(app_url('assets/js/player.js?v=player-preview-2')) ?>"></script>
+    <script src="<?= e(app_url('assets/js/player.js?v=live-weather-3')) ?>"></script>
 </body>
 </html>

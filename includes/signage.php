@@ -273,7 +273,7 @@ function screen_payload_by_credentials(string $publicId, string $key): ?array
 
     $full = load_screen_with_slides((int)$screen['id']);
     $revisionSource = [
-        'screen' => $full['updated_at'] ?? '',
+        'name' => $full['name'],
         'slides' => array_map(static function (array $slide): array {
             return [
                 'name' => $slide['name'],

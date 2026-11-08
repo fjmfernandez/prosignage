@@ -6,6 +6,7 @@
   const previewMode = cfg.preview === true;
 
   const els = {
+    stage: document.getElementById("stage"),
     content: document.getElementById("content"),
     logo: document.getElementById("logo"),
     clock: document.getElementById("clock"),
@@ -13,6 +14,10 @@
     weather: document.getElementById("weather"),
     ticker: document.getElementById("ticker"),
     tickerTxt: document.getElementById("tickerTxt"),
+    tickerClone: document.getElementById("tickerClone"),
+    tickerLabel: document.getElementById("tickerLabel"),
+    tickerWindow: document.getElementById("tickerWindow"),
+    tickerTrack: document.getElementById("tickerTrack"),
     dot: document.getElementById("dot"),
     hint: document.getElementById("hint"),
     fallback: document.getElementById("fallback"),
@@ -26,6 +31,13 @@
   let bootstrapInterval = null;
   let heartbeatInterval = null;
   let commandInterval = null;
+  let widgetInterval = null;
+  let scheduleInterval = null;
+  let activeSignature = '';
+  let bootstrapInFlight = false;
+  let bootstrapRequested = false;
+  let updateChannel = null;
+  let widgetGeneration = 0;
   let serverTimeOffset = 0;
   let statusHideTimeout = null;
   let lastRevision = "";
@@ -173,7 +185,7 @@
   }
 
   function weatherCacheKey(city) {
-    return `prosignage_weather_${city.toLowerCase()}`;
+    return `prosignage_weather_v2_${city.toLowerCase()}`;
   }
 
   async function fetchWeather(city) {
@@ -182,11 +194,13 @@
     }
 
     const key = weatherCacheKey(city);
+    let staleData = null;
     try {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Date.now() - parsed.ts < 2 * 60 * 60 * 1000) {
+        staleData = parsed.data || null;
+        if (Date.now() - parsed.ts < 30 * 60 * 1000) {
           return parsed.data;
         }
       }
@@ -199,29 +213,32 @@
         { cache: "no-store" }
       );
       const geo = await geoReq.json();
-      if (!geo.results || !geo.results.length) {
-        return null;
+      if (!geoReq.ok || !geo.results || !geo.results.length) {
+        return staleData;
       }
 
       const { latitude, longitude, name } = geo.results[0];
       const weatherReq = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,precipitation_probability_max&timezone=auto&forecast_days=3`,
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&timezone=auto&forecast_days=3`,
         { cache: "no-store" }
       );
       const weather = await weatherReq.json();
+      if (!weatherReq.ok || !Array.isArray(weather.daily?.time)) return staleData;
       const output = {
         location: name,
         days: weather.daily.time.map((time, index) => ({
-          dayName: new Date(time).toLocaleDateString("es-ES", { weekday: "short" }),
+          dayName: new Date(`${time}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short" }),
           temp: Math.round(weather.daily.temperature_2m_max[index]),
+          low: Math.round(weather.daily.temperature_2m_min[index]),
           rain: weather.daily.precipitation_probability_max[index] || 0,
+          code: Number(weather.daily.weather_code[index] || 0),
         })),
       };
 
-      localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: output }));
+      try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: output })); } catch (error) { /* Cache is optional. */ }
       return output;
     } catch (error) {
-      return null;
+      return staleData;
     }
   }
 
@@ -254,7 +271,7 @@
         .filter(Boolean)
         .join(" | ");
 
-      localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: text }));
+      try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: text })); } catch (error) { /* Cache is optional. */ }
       return text;
     } catch (error) {
       return null;
@@ -284,6 +301,48 @@
       .replaceAll("'", '&#039;');
   }
 
+  function weatherCondition(code) {
+    const value = Number(code);
+    if (value === 0) return { kind: 'sun', label: 'Despejado' };
+    if (value === 1 || value === 2) return { kind: 'partly', label: 'Poco nuboso' };
+    if (value === 3) return { kind: 'cloud', label: 'Nublado' };
+    if (value === 45 || value === 48) return { kind: 'fog', label: 'Niebla' };
+    if ([71, 73, 75, 77, 85, 86].includes(value)) return { kind: 'snow', label: 'Nieve' };
+    if ([95, 96, 97, 99].includes(value)) return { kind: 'storm', label: 'Tormenta' };
+    if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(value)) {
+      return { kind: 'rain', label: 'Lluvia' };
+    }
+    return { kind: 'cloud', label: 'Variable' };
+  }
+
+  function weatherIcon(code) {
+    const { kind, label } = weatherCondition(code);
+    const sun = '<circle cx="24" cy="23" r="9" fill="#fbbf24"/><path d="M24 3v7M24 36v7M4 23h7M37 23h7M10 9l5 5M33 32l5 5M38 9l-5 5M15 32l-5 5" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>';
+    const cloud = '<path d="M18 45h29a9 9 0 0 0 0-18 15 15 0 0 0-28-3 11 11 0 0 0-1 21Z" fill="#e0e7ff" stroke="#9ca3c4" stroke-width="2.5" stroke-linejoin="round"/>';
+    let shapes = '';
+    if (kind === 'sun') shapes = sun;
+    else if (kind === 'partly') shapes = `${sun}${cloud}`;
+    else if (kind === 'cloud') shapes = cloud;
+    else if (kind === 'fog') shapes = `${cloud}<path d="M12 52h38M18 58h28" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round"/>`;
+    else if (kind === 'rain') shapes = `${cloud}<path d="M21 49l-3 8M34 49l-3 8M47 49l-3 8" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>`;
+    else if (kind === 'snow') shapes = `${cloud}<path d="M19 53h8m-4-4v8m13-4h8m-4-4v8" stroke="#a5f3fc" stroke-width="3" stroke-linecap="round"/>`;
+    else shapes = `${cloud}<path d="M35 46l-8 9h7l-4 7 13-12h-8l5-4" fill="#fde047"/>`;
+    return `<svg class="weather-icon weather-icon-${kind}" viewBox="0 0 64 64" role="img" aria-label="${label}">${shapes}</svg>`;
+  }
+
+  function updateTickerMetrics() {
+    if (els.ticker.style.display === 'none') return;
+    const windowWidth = els.tickerWindow.clientWidth;
+    if (windowWidth < 1) return;
+    els.tickerTxt.style.minWidth = '0px';
+    els.tickerClone.style.minWidth = '0px';
+    const segmentWidth = Math.max(windowWidth, els.tickerTxt.scrollWidth);
+    for (const copy of [els.tickerTxt, els.tickerClone]) copy.style.minWidth = `${segmentWidth}px`;
+    const configuredSpeed = Number(model?.widgets?.ticker?.speed);
+    const secondsPerScreen = Number.isFinite(configuredSpeed) ? Math.max(8, Math.min(120, configuredSpeed)) : 18;
+    els.tickerTrack.style.setProperty('--ticker-duration', `${secondsPerScreen * segmentWidth / windowWidth}s`);
+  }
+
   function getActiveSlides() {
     const now = getCurrentTime();
     const day = now.getDay();
@@ -299,6 +358,7 @@
   }
 
   async function applyWidgets() {
+    const generation = ++widgetGeneration;
     const widgets = model?.widgets || {};
 
     if (widgets.logo?.show && widgets.logo?.url) {
@@ -325,7 +385,9 @@
     const weatherLayout = widgets.weather?.layout || "horizontal";
 
     if (showWeather) {
-      weatherData = await fetchWeather(widgets.weather.city);
+      const latestWeather = await fetchWeather(widgets.weather.city);
+      if (generation !== widgetGeneration) return;
+      weatherData = latestWeather;
     } else {
       weatherData = null;
     }
@@ -342,23 +404,19 @@
           document.getElementById("stage").appendChild(verticalWidget);
         }
         verticalWidget.innerHTML = `
+          <div class="weather-kicker">PRONOSTICO</div>
           <div class="weather-location-enhanced">${escapeHtml(weatherData.location)}</div>
           ${weatherData.days
             .map((day, index) => {
-              const date = new Date();
-              date.setDate(date.getDate() + index);
-              const fullDate = date.toLocaleDateString("es-ES", {
-                weekday: "long",
-                day: "numeric",
-                month: "short",
-              });
+              const dayLabel = index === 0 ? 'Hoy' : index === 1 ? 'Mañana' : day.dayName;
               return `
                 <div class="weather-day-enhanced">
-                  <div class="weather-date">${escapeHtml(fullDate)}</div>
-                  <div class="weather-temp-row">
-                    <span>${escapeHtml(day.temp)} C</span>
-                    <span>${escapeHtml(day.rain)}% lluvia</span>
+                  ${weatherIcon(day.code)}
+                  <div class="weather-day-copy">
+                    <div class="weather-date">${escapeHtml(dayLabel)}</div>
+                    <div class="weather-description">${weatherCondition(day.code).label}</div>
                   </div>
+                  <div class="weather-day-numbers"><strong>${escapeHtml(day.temp)}°</strong><span>${escapeHtml(day.rain)}% lluvia</span></div>
                 </div>
               `;
             })
@@ -372,15 +430,16 @@
         els.bar.style.display = showWeather || showTicker ? "" : "none";
         els.weather.style.display = "";
         els.weather.innerHTML = `
-          <div class="weather-location">${escapeHtml(weatherData.location)}</div>
+          <div class="weather-heading"><span class="weather-kicker">TIEMPO EN</span><strong class="weather-location">${escapeHtml(weatherData.location)}</strong></div>
           <div class="weather-days">
             ${weatherData.days
               .map(
-                (day) => `
+                (day, index) => `
                   <div class="w-day">
-                    <div class="w-name">${escapeHtml(day.dayName)}</div>
-                    <div class="w-temp">${escapeHtml(day.temp)} C</div>
-                    <div class="w-rain">${escapeHtml(day.rain)}%</div>
+                    <div class="w-name">${escapeHtml(index === 0 ? 'Hoy' : index === 1 ? 'Mañana' : day.dayName)}</div>
+                    ${weatherIcon(day.code)}
+                    <div class="w-temp">${escapeHtml(day.temp)}° <small>${escapeHtml(day.low)}°</small></div>
+                    <div class="w-rain">${escapeHtml(day.rain)}% lluvia</div>
                   </div>
                 `
               )
@@ -401,15 +460,19 @@
       let tickerText = "";
       if (widgets.ticker.mode === "rss" && widgets.ticker.rssUrl) {
         tickerText = (await fetchRss(widgets.ticker.rssUrl)) || widgets.ticker.text || "";
+        if (generation !== widgetGeneration) return;
       } else {
         tickerText = widgets.ticker.text || "";
       }
 
       els.ticker.style.display = "";
-      els.tickerTxt.textContent = tickerText;
-      els.tickerTxt.style.setProperty("--speed", `${Math.max(8, Number(widgets.ticker.speed || 18))}s`);
-      els.tickerTxt.style.fontSize = `${Number(widgets.ticker.fontSize || 14)}px`;
-      els.tickerTxt.style.color = widgets.ticker.color || "#ffffff";
+      els.tickerLabel.textContent = widgets.ticker.mode === 'rss' ? 'NOTICIAS' : 'AVISOS';
+      for (const copy of [els.tickerTxt, els.tickerClone]) {
+        copy.textContent = tickerText || 'Sin avisos';
+        copy.style.fontSize = `${Number(widgets.ticker.fontSize || 14)}px`;
+        copy.style.color = widgets.ticker.color || "#ffffff";
+      }
+      updateTickerMetrics();
     } else {
       els.ticker.style.display = "none";
     }
@@ -417,6 +480,7 @@
     const showRssSidebar = !!widgets.rssSidebar?.show && !!widgets.rssSidebar?.url;
     if (showRssSidebar) {
       const sidebarText = await fetchRss(widgets.rssSidebar.url);
+      if (generation !== widgetGeneration) return;
       const items = String(sidebarText || "")
         .split("|")
         .map((item) => item.trim())
@@ -495,6 +559,7 @@
   function next() {
     window.clearTimeout(rotationTimer);
     const activeSlides = getActiveSlides();
+    activeSignature = JSON.stringify(activeSlides.map((slide) => [slide.name, slide.url, slide.startTime, slide.endTime, slide.days]));
     if (!activeSlides.length) {
       showFallback("No hay contenido activo en este horario.");
       els.content.replaceChildren();
@@ -691,29 +756,43 @@
   async function bootFromPayload(payload) {
     model = payload;
     lastRevision = payload.revision;
+    els.stage.dataset.revision = payload.revision;
     saveCached(payload);
     syncServerTime().then(tickClock).catch(() => {});
     playIndex = 0;
     next();
-    await applyWidgets();
+    applyWidgets().catch(() => {});
     prefetchImages(payload.slides || []).catch(() => {});
   }
 
   async function fetchBootstrap() {
-    const response = await fetch(apiUrl(cfg.bootstrapUrl), { cache: "no-store" });
+    const url = new URL(apiUrl(cfg.bootstrapUrl));
+    if (lastRevision) url.searchParams.set('revision', lastRevision);
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    let response;
+    try {
+      response = await fetch(url.toString(), { cache: "no-store", signal: controller.signal });
+    } finally {
+      window.clearTimeout(timeout);
+    }
     const payload = await response.json();
     if (!response.ok || !payload.ok) {
       throw new Error(payload.message || "No se pudo cargar la configuracion");
     }
-    return payload.data;
+    return payload;
   }
 
   async function refreshBootstrap() {
+    if (bootstrapInFlight) {
+      bootstrapRequested = true;
+      return;
+    }
+    bootstrapInFlight = true;
     try {
-      const data = await fetchBootstrap();
-      hideFallback();
-      if (data.revision !== lastRevision) {
-        await bootFromPayload(data);
+      const payload = await fetchBootstrap();
+      if (!payload.unchanged && payload.data?.revision !== lastRevision) {
+        await bootFromPayload(payload.data);
       }
       setOnlineState(true);
     } catch (error) {
@@ -721,18 +800,36 @@
       if (!model) {
         showFallback("No se pudo cargar la configuracion de la pantalla.");
       }
+    } finally {
+      bootstrapInFlight = false;
+      if (bootstrapRequested) {
+        bootstrapRequested = false;
+        window.setTimeout(refreshBootstrap, 0);
+      }
     }
   }
 
   function ensureIntervals() {
     if (!bootstrapInterval) {
-      bootstrapInterval = window.setInterval(refreshBootstrap, 60000);
+      bootstrapInterval = window.setInterval(refreshBootstrap, 2000);
     }
     if (!heartbeatInterval) {
       heartbeatInterval = window.setInterval(sendHeartbeat, 60000);
     }
     if (!commandInterval) {
       commandInterval = window.setInterval(pollCommands, 5000);
+    }
+    if (!widgetInterval) {
+      widgetInterval = window.setInterval(() => applyWidgets().catch(() => {}), 15 * 60 * 1000);
+    }
+    if (!scheduleInterval) {
+      scheduleInterval = window.setInterval(() => {
+        const signature = JSON.stringify(getActiveSlides().map((slide) => [slide.name, slide.url, slide.startTime, slide.endTime, slide.days]));
+        if (signature !== activeSignature) {
+          playIndex = 0;
+          next();
+        }
+      }, 15000);
     }
   }
 
@@ -766,6 +863,7 @@
   async function init() {
     window.setInterval(tickClock, 1000);
     tickClock();
+    if ('ResizeObserver' in window) new ResizeObserver(updateTickerMetrics).observe(els.tickerWindow);
     if (previewMode) {
       window.addEventListener("message", (event) => {
         if (event.origin !== window.location.origin || event.source !== window.parent) return;
@@ -779,8 +877,9 @@
       return;
     }
 
-    window.addEventListener("online", () => setOnlineState(true));
+    window.addEventListener("online", () => refreshBootstrap());
     window.addEventListener("offline", () => setOnlineState(false));
+    window.addEventListener("focus", refreshBootstrap);
     setOnlineState(navigator.onLine);
 
     if (!screenPublicId || !playerKey) {
@@ -798,6 +897,14 @@
     detectKioskApi().catch(() => {});
     await refreshBootstrap();
     ensureIntervals();
+    if ('BroadcastChannel' in window) {
+      updateChannel = new BroadcastChannel('prosignage-screen-updates');
+      updateChannel.addEventListener('message', (event) => {
+        if (event.data?.type === 'screen-saved' && Number(event.data.screenId) === Number(model?.screenId)) {
+          refreshBootstrap();
+        }
+      });
+    }
     sendHeartbeat().catch(() => {});
     prepareOfflineShell().catch(() => {});
   }
