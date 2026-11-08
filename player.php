@@ -18,7 +18,7 @@ if ($previewMode) {
     <meta name="mobile-web-app-capable" content="yes">
     <title><?= e(app_name()) ?> Player</title>
     <link rel="icon" href="<?= e(app_logo_url()) ?>" type="image/png">
-    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=live-weather-3')) ?>">
+    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=live-weather-4')) ?>">
 </head>
 <body class="player-body<?= $previewMode ? ' player-preview-mode' : '' ?>">
     <div id="stage" class="player-stage">
@@ -58,6 +58,6 @@ if ($previewMode) {
         'serviceWorkerUrl' => app_url('sw.js?v=3'),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
-    <script src="<?= e(app_url('assets/js/player.js?v=live-weather-3')) ?>"></script>
+    <script src="<?= e(app_url('assets/js/player.js?v=live-weather-4')) ?>"></script>
 </body>
 </html>
