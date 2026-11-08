@@ -18,7 +18,10 @@ function render_header(string $title, string $active = 'dashboard'): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0f172a">
     <title><?= e($title) ?> | <?= e(app_name()) ?></title>
-    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=sql1')) ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=master-control-1')) ?>">
 </head>
 <body>
 <?php if ($user): ?>

@@ -120,7 +120,9 @@ if ($groupsSt) {
 }
 
 $screenSt = $db->prepare(
-    "SELECT s.*, COUNT(sl.id) AS slide_count
+    "SELECT s.*, COUNT(sl.id) AS slide_count,
+            (SELECT p.source_url FROM screen_slides p WHERE p.screen_id = s.id ORDER BY p.sort_order, p.id LIMIT 1) AS preview_url,
+            (SELECT p.content_type FROM screen_slides p WHERE p.screen_id = s.id ORDER BY p.sort_order, p.id LIMIT 1) AS preview_type
      FROM screens s
      LEFT JOIN screen_slides sl ON sl.screen_id = s.id
      WHERE s.group_id = ?
@@ -138,7 +140,7 @@ render_header('Pantallas', 'dashboard');
         <div class="alert danger"><?= e($message) ?></div>
     <?php endif; ?>
 
-    <div class="page-intro card">
+    <div class="page-intro dashboard-intro">
         <div>
             <h1>Pantallas y grupos</h1>
             <p>Control central de contenido, monitorizacion y usuarios por grupo.</p>
@@ -162,7 +164,7 @@ render_header('Pantallas', 'dashboard');
 
     <?php foreach ($groups as $group): ?>
         <?php $screenSt->execute([(int)$group['id']]); $screens = $screenSt->fetchAll(); ?>
-        <section class="group-panel card">
+        <section class="group-panel">
             <div class="group-head">
                 <div>
                     <h2><?= e($group['name']) ?></h2>
@@ -207,6 +209,18 @@ render_header('Pantallas', 'dashboard');
                     $playerUrl = screen_player_url($screen);
                     ?>
                     <article class="screen-card">
+                        <div class="screen-preview <?= $screen['orientation'] === 'portrait' ? 'preview-portrait' : 'preview-landscape' ?>">
+                            <?php if ($screen['preview_url'] && $screen['preview_type'] === 'image'): ?>
+                                <img src="<?= e($screen['preview_url']) ?>" alt="Vista previa de <?= e($screen['name']) ?>" loading="lazy">
+                            <?php elseif ($screen['preview_url'] && $screen['preview_type'] === 'video'): ?>
+                                <video src="<?= e($screen['preview_url']) ?>" muted playsinline preload="metadata" aria-label="Vista previa de <?= e($screen['name']) ?>"></video>
+                            <?php elseif ($screen['preview_url']): ?>
+                                <div class="preview-placeholder"><span>WEB</span><strong><?= e($screen['name']) ?></strong></div>
+                            <?php else: ?>
+                                <div class="preview-placeholder"><span>Sin contenido</span><strong><?= e($screen['name']) ?></strong></div>
+                            <?php endif; ?>
+                            <span class="preview-orientation"><?= $screen['orientation'] === 'portrait' ? '9:16' : '16:9' ?></span>
+                        </div>
                         <div class="screen-top">
                             <div>
                                 <h3><?= e($screen['name']) ?></h3>

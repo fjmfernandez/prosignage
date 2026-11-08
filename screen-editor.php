@@ -13,7 +13,7 @@ render_header('Editor de pantalla');
         <div class="alert danger"><?= e($message) ?></div>
     <?php endif; ?>
 
-    <div class="page-intro card">
+    <div class="page-intro editor-intro">
         <div>
             <h1><?= e($fullScreen['name']) ?></h1>
             <p>Grupo: <?= e($fullScreen['group_name']) ?> · Player URL listo para copiar</p>
@@ -26,7 +26,7 @@ render_header('Editor de pantalla');
     </div>
 
     <div class="editor-layout">
-        <aside class="card editor-sidebar">
+        <aside class="editor-sidebar">
             <div class="stack">
                 <h2>Configuracion general</h2>
                 <label class="field">
@@ -94,11 +94,7 @@ render_header('Editor de pantalla');
                     <label class="field"><span>RSS URL</span><input type="url" id="rss-url" value="<?= e($fullScreen['widgets']['rssSidebar']['url']) ?>"></label>
                     <label class="field"><span>Posicion</span><select id="rss-pos"><option value="pos-top-right">Arriba</option><option value="pos-middle-right">Centro</option><option value="pos-bottom-right">Abajo</option></select></label>
                 </div>
-            </div>
-        </aside>
-
-        <section class="card editor-main">
-            <div class="stack">
+                <section class="editor-playlist stack">
                 <div class="section-head">
                     <h2>Playlist</h2>
                     <button type="button" class="btn primary" id="add-url-slide">Agregar URL</button>
@@ -118,7 +114,33 @@ render_header('Editor de pantalla');
                 </form>
 
                 <div id="playlist-editor" class="playlist-stack"></div>
+                </section>
             </div>
+        </aside>
+
+        <section class="editor-preview" aria-label="Vista previa de la pantalla">
+            <div class="preview-heading">
+                <div><span class="eyebrow">Vista previa en directo</span><h2 id="preview-title"><?= e($fullScreen['name']) ?></h2></div>
+                <span id="preview-format" class="preview-format">16:9</span>
+            </div>
+            <div class="preview-canvas-wrap">
+                <div id="editor-stage" class="editor-stage landscape">
+                    <div id="preview-content" class="preview-content"></div>
+                    <img id="preview-logo" class="preview-logo" alt="" hidden>
+                    <div id="preview-clock" class="preview-clock" hidden></div>
+                    <div id="preview-rss" class="preview-rss" hidden>Noticias RSS</div>
+                    <div id="preview-bottom" class="preview-bottom" hidden>
+                        <div id="preview-weather" class="preview-weather" hidden></div>
+                        <div id="preview-ticker" class="preview-ticker" hidden><span id="preview-ticker-text"></span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="preview-controls">
+                <button type="button" class="btn ghost small" id="preview-prev" aria-label="Slide anterior">← Anterior</button>
+                <span id="preview-slide-label">Sin contenido</span>
+                <button type="button" class="btn ghost small" id="preview-next" aria-label="Slide siguiente">Siguiente →</button>
+            </div>
+            <p class="preview-note">Tiempo y RSS se muestran como guía de posición. Abre el player para ver sus datos reales.</p>
         </section>
     </div>
 </section>
@@ -137,4 +159,4 @@ window.PROSIGNAGE_ENDPOINTS = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 window.PROSIGNAGE_CSRF = <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=sql1')]); ?>
+<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=master-control-1')]); ?>
