@@ -3,6 +3,12 @@ require __DIR__ . '/bootstrap.php';
 
 $screenPublicId = (string)($_GET['screen'] ?? '');
 $key = (string)($_GET['key'] ?? '');
+$previewMode = isset($_GET['preview']) && $_GET['preview'] === '1';
+if ($previewMode) {
+    require_screen_access((int)($_GET['id'] ?? 0), true);
+    $screenPublicId = '';
+    $key = '';
+}
 ?><!doctype html>
 <html lang="es">
 <head>
@@ -12,9 +18,9 @@ $key = (string)($_GET['key'] ?? '');
     <meta name="mobile-web-app-capable" content="yes">
     <title><?= e(app_name()) ?> Player</title>
     <link rel="icon" href="<?= e(app_logo_url()) ?>" type="image/png">
-    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=sql1')) ?>">
+    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=player-preview-2')) ?>">
 </head>
-<body class="player-body">
+<body class="player-body<?= $previewMode ? ' player-preview-mode' : '' ?>">
     <div id="stage" class="player-stage">
         <div id="content"></div>
         <img id="logo" alt="" class="p-logo" style="display:none">
@@ -36,12 +42,14 @@ $key = (string)($_GET['key'] ?? '');
     window.PROSIGNAGE_PLAYER = <?= json_encode([
         'screen' => $screenPublicId,
         'key' => $key,
+        'preview' => $previewMode,
         'bootstrapUrl' => app_url('api/player-bootstrap.php'),
         'heartbeatUrl' => app_url('api/player-heartbeat.php'),
         'commandUrl' => app_url('api/player-command.php'),
         'commandAckUrl' => app_url('api/player-command-ack.php'),
+        'serviceWorkerUrl' => app_url('sw.js?v=3'),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
-    <script src="<?= e(app_url('assets/js/player.js?v=sql1')) ?>"></script>
+    <script src="<?= e(app_url('assets/js/player.js?v=player-preview-2')) ?>"></script>
 </body>
 </html>

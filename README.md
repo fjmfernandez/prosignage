@@ -23,6 +23,18 @@ Current architecture:
 - `/screen-editor.php?id=SCREEN_ID`: screen editor
 - `/player.php?screen=PUBLIC_ID&key=PLAYER_KEY`: public player
 
+## Preview and playback
+
+The editor embeds the same player used by a screen. Enter the display's actual
+pixel width and height above the preview to compare widget and text sizes at the
+correct scale. Unsaved edits appear in the preview; the public player changes
+after saving the screen.
+
+The player keeps its last valid configuration locally and caches its page,
+scripts, stylesheet and same-origin uploaded images for offline recovery.
+Images are prefetched after a successful sync. External websites, feeds,
+weather data and videos that require range requests still need a connection.
+
 Legacy compatibility shortcuts:
 
 - `/admin.html` redirects to `/admin.php`
