@@ -11,7 +11,7 @@ services:
       APP_ADMIN_NAME: "${APP_ADMIN_NAME:-Administrador}"
       APP_ADMIN_EMAIL: "${APP_ADMIN_EMAIL:-}"
       APP_ADMIN_PASSWORD: "${APP_ADMIN_PASSWORD:-}"
-      APP_LOGO_URL: "https://www.entelsat.com/wp-content/uploads/2018/11/logo_entelsat_144.png"
+      APP_LOGO_URL: "https://www.entelsat.com/assets/img/logo-entelsat.png"
       DB_HOST: "db"
       DB_PORT: "3306"
       DB_DATABASE: "prosignage"
