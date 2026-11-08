@@ -28,7 +28,13 @@ Current architecture:
 The editor embeds the same player used by a screen. Enter the display's actual
 pixel width and height above the preview to compare widget and text sizes at the
 correct scale. Unsaved edits appear in the preview; the public player changes
-after saving the screen.
+after publishing the screen. Open players in the same browser receive the update
+immediately; remote players check for changes every two seconds and keep showing
+their last content during a network outage.
+
+The weather widget shows a three-day forecast with SVG icons based on
+Open-Meteo's WMO weather codes. The ticker repeats seamlessly and adapts its
+scroll duration to the length of the message.
 
 The player keeps its last valid configuration locally and caches its page,
 scripts, stylesheet and same-origin uploaded images for offline recovery.

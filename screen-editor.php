@@ -21,7 +21,8 @@ render_header('Editor de pantalla');
         <div class="action-row wrap">
             <a href="admin.php" class="btn ghost">Volver</a>
             <a href="<?= e(screen_player_url($fullScreen)) ?>" target="_blank" rel="noopener" class="btn ghost">Abrir player</a>
-            <button type="button" class="btn primary" id="save-screen">Guardar</button>
+            <button type="button" class="btn primary" id="save-screen">Publicar cambios</button>
+            <span id="publish-status" class="publish-status" role="status" aria-live="polite"></span>
         </div>
     </div>
 
@@ -62,7 +63,7 @@ render_header('Editor de pantalla');
                     <label class="field"><span>Modo</span><select id="ticker-mode"><option value="manual">Manual</option><option value="rss">RSS</option></select></label>
                     <label class="field"><span>Texto</span><textarea id="ticker-text" rows="3"><?= e($fullScreen['widgets']['ticker']['text']) ?></textarea></label>
                     <label class="field"><span>RSS URL</span><input type="url" id="ticker-rss" value="<?= e($fullScreen['widgets']['ticker']['rssUrl']) ?>"></label>
-                    <label class="field"><span>Velocidad</span><input type="number" id="ticker-speed" min="8" max="120" value="<?= (int)$fullScreen['widgets']['ticker']['speed'] ?>"></label>
+                    <label class="field"><span>Velocidad (segundos por pantalla)</span><input type="number" id="ticker-speed" min="8" max="120" value="<?= (int)$fullScreen['widgets']['ticker']['speed'] ?>"></label>
                     <label class="field"><span>Tamano fuente</span><input type="number" id="ticker-size" min="10" max="40" value="<?= (int)$fullScreen['widgets']['ticker']['fontSize'] ?>"></label>
                     <label class="field"><span>Color</span><input type="color" id="ticker-color" value="<?= e($fullScreen['widgets']['ticker']['color']) ?>"></label>
                 </div>
@@ -158,4 +159,4 @@ window.PROSIGNAGE_ENDPOINTS = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 window.PROSIGNAGE_CSRF = <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=player-preview-2')]); ?>
+<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=live-weather-3')]); ?>
