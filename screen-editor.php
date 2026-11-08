@@ -121,18 +121,17 @@ render_header('Editor de pantalla');
         <section class="editor-preview" aria-label="Vista previa de la pantalla">
             <div class="preview-heading">
                 <div><span class="eyebrow">Vista previa en directo</span><h2 id="preview-title"><?= e($fullScreen['name']) ?></h2></div>
-                <span id="preview-format" class="preview-format">16:9</span>
+                <div class="preview-resolution">
+                    <label>Ancho <input id="preview-width" type="number" min="320" max="7680" step="1" value="<?= $fullScreen['orientation'] === 'portrait' ? 1080 : 1920 ?>" aria-label="Ancho de la pantalla en pixeles"></label>
+                    <span aria-hidden="true">×</span>
+                    <label>Alto <input id="preview-height" type="number" min="320" max="7680" step="1" value="<?= $fullScreen['orientation'] === 'portrait' ? 1920 : 1080 ?>" aria-label="Alto de la pantalla en pixeles"></label>
+                    <span class="preview-unit">px</span>
+                    <span id="preview-format" class="preview-format"><?= $fullScreen['orientation'] === 'portrait' ? '9:16' : '16:9' ?></span>
+                </div>
             </div>
             <div class="preview-canvas-wrap">
-                <div id="editor-stage" class="editor-stage landscape">
-                    <div id="preview-content" class="preview-content"></div>
-                    <img id="preview-logo" class="preview-logo" alt="" hidden>
-                    <div id="preview-clock" class="preview-clock" hidden></div>
-                    <div id="preview-rss" class="preview-rss" hidden>Noticias RSS</div>
-                    <div id="preview-bottom" class="preview-bottom" hidden>
-                        <div id="preview-weather" class="preview-weather" hidden></div>
-                        <div id="preview-ticker" class="preview-ticker" hidden><span id="preview-ticker-text"></span></div>
-                    </div>
+                <div id="editor-stage" class="editor-stage">
+                    <iframe id="preview-player" title="Player de vista previa" src="<?= e(app_url('player.php?preview=1&id=' . (int)$fullScreen['id'])) ?>"></iframe>
                 </div>
             </div>
             <div class="preview-controls">
@@ -140,7 +139,7 @@ render_header('Editor de pantalla');
                 <span id="preview-slide-label">Sin contenido</span>
                 <button type="button" class="btn ghost small" id="preview-next" aria-label="Slide siguiente">Siguiente →</button>
             </div>
-            <p class="preview-note">Tiempo y RSS se muestran como guía de posición. Abre el player para ver sus datos reales.</p>
+            <p class="preview-note">La vista previa usa el mismo player. Introduce la resolucion real de tu pantalla para comprobar el tamano exacto de textos y widgets.</p>
         </section>
     </div>
 </section>
@@ -159,4 +158,4 @@ window.PROSIGNAGE_ENDPOINTS = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 window.PROSIGNAGE_CSRF = <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=master-control-1')]); ?>
+<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=player-preview-2')]); ?>

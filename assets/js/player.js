@@ -3,6 +3,7 @@
   const params = new URLSearchParams(window.location.search);
   const screenPublicId = cfg.screen || params.get("screen");
   const playerKey = cfg.key || params.get("key");
+  const previewMode = cfg.preview === true;
 
   const els = {
     content: document.getElementById("content"),
@@ -21,7 +22,6 @@
   let model = null;
   let weatherData = null;
   let playIndex = 0;
-  let playTimer = null;
   let rotationTimer = null;
   let bootstrapInterval = null;
   let heartbeatInterval = null;
@@ -43,7 +43,7 @@
     freekioskVersion: null,
   };
 
-  const cacheKey = screenPublicId ? `prosignage_screen_${screenPublicId}` : null;
+  const cacheKey = !previewMode && screenPublicId ? `prosignage_screen_${screenPublicId}` : null;
 
   function apiUrl(base) {
     const url = new URL(base, window.location.origin);
@@ -100,6 +100,44 @@
     try {
       localStorage.setItem(cacheKey, JSON.stringify(data));
     } catch (error) {
+    }
+  }
+
+  async function prepareOfflineShell() {
+    if (previewMode || !('serviceWorker' in navigator) || !('caches' in window)) return;
+    await navigator.serviceWorker.register(cfg.serviceWorkerUrl);
+    const cache = await caches.open('prosignage-shell-v3');
+    const urls = [window.location.href, ...Array.from(document.querySelectorAll('link[rel="stylesheet"], script[src]'))
+      .map((element) => element.href || element.src)
+      .filter((url) => new URL(url).origin === window.location.origin)];
+    await Promise.allSettled(urls.map(async (url) => {
+      const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      if (response.ok) await cache.put(url, response);
+    }));
+  }
+
+  async function prefetchImages(slides) {
+    if (previewMode || !('caches' in window)) return;
+    const cache = await caches.open('prosignage-media-v3');
+    const urls = [...new Set(slides
+      .filter((slide) => guessType(slide.url, slide.type) === 'image')
+      .map((slide) => {
+        try {
+          const url = new URL(slide.url, window.location.origin);
+          return url.origin === window.location.origin && url.pathname.includes('/storage/uploads/') ? url.href : null;
+        } catch (error) {
+          return null;
+        }
+      })
+      .filter(Boolean))];
+    for (const url of urls) {
+      try {
+        if (await cache.match(url)) continue;
+        const response = await fetch(url);
+        if (response.ok) await cache.put(url, response);
+      } catch (error) {
+        // The next successful refresh can try again.
+      }
     }
   }
 
@@ -237,6 +275,15 @@
     return "image";
   }
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
   function getActiveSlides() {
     const now = getCurrentTime();
     const day = now.getDay();
@@ -285,7 +332,8 @@
 
     if (showWeather && weatherData) {
       if (weatherLayout === "vertical") {
-        els.bar.style.display = "none";
+        els.bar.style.display = showTicker ? "" : "none";
+        els.weather.style.display = "none";
         let verticalWidget = document.getElementById("weather-vertical");
         if (!verticalWidget) {
           verticalWidget = document.createElement("div");
@@ -294,7 +342,7 @@
           document.getElementById("stage").appendChild(verticalWidget);
         }
         verticalWidget.innerHTML = `
-          <div class="weather-location-enhanced">${weatherData.location}</div>
+          <div class="weather-location-enhanced">${escapeHtml(weatherData.location)}</div>
           ${weatherData.days
             .map((day, index) => {
               const date = new Date();
@@ -306,10 +354,10 @@
               });
               return `
                 <div class="weather-day-enhanced">
-                  <div class="weather-date">${fullDate}</div>
+                  <div class="weather-date">${escapeHtml(fullDate)}</div>
                   <div class="weather-temp-row">
-                    <span>${day.temp} C</span>
-                    <span>${day.rain}% lluvia</span>
+                    <span>${escapeHtml(day.temp)} C</span>
+                    <span>${escapeHtml(day.rain)}% lluvia</span>
                   </div>
                 </div>
               `;
@@ -324,15 +372,15 @@
         els.bar.style.display = showWeather || showTicker ? "" : "none";
         els.weather.style.display = "";
         els.weather.innerHTML = `
-          <div class="weather-location">${weatherData.location}</div>
+          <div class="weather-location">${escapeHtml(weatherData.location)}</div>
           <div class="weather-days">
             ${weatherData.days
               .map(
                 (day) => `
                   <div class="w-day">
-                    <div class="w-name">${day.dayName}</div>
-                    <div class="w-temp">${day.temp} C</div>
-                    <div class="w-rain">${day.rain}%</div>
+                    <div class="w-name">${escapeHtml(day.dayName)}</div>
+                    <div class="w-temp">${escapeHtml(day.temp)} C</div>
+                    <div class="w-rain">${escapeHtml(day.rain)}%</div>
                   </div>
                 `
               )
@@ -349,7 +397,7 @@
       els.bar.style.display = showTicker ? "" : "none";
     }
 
-    if (showTicker && weatherLayout === "horizontal") {
+    if (showTicker) {
       let tickerText = "";
       if (widgets.ticker.mode === "rss" && widgets.ticker.rssUrl) {
         tickerText = (await fetchRss(widgets.ticker.rssUrl)) || widgets.ticker.text || "";
@@ -384,7 +432,7 @@
       rssWidget.className = `rss-sidebar ${widgets.rssSidebar.pos || "pos-top-right"}`;
       rssWidget.innerHTML = `
         <div class="rss-title">Noticias</div>
-        ${items.map((item) => `<div class="rss-item">${item}</div>`).join("")}
+        ${items.map((item) => `<div class="rss-item">${escapeHtml(item)}</div>`).join("")}
       `;
     } else {
       const rssWidget = document.getElementById("rss-sidebar");
@@ -399,6 +447,16 @@
       return;
     }
 
+    let mediaUrl;
+    try {
+      mediaUrl = new URL(slide.url, window.location.origin);
+      if (!['http:', 'https:'].includes(mediaUrl.protocol)) throw new Error('URL no admitida');
+    } catch (error) {
+      els.content.replaceChildren();
+      showFallback("La URL del contenido no es valida.");
+      return;
+    }
+
     systemInfo.currentSlide = {
       name: slide.name || "Sin nombre",
       url: slide.url || "",
@@ -407,32 +465,39 @@
     };
 
     const type = guessType(slide.url, slide.type);
-    const fit = slide.fit || "contain";
-
-    window.clearTimeout(playTimer);
-    window.clearTimeout(rotationTimer);
-
+    const fit = ["contain", "cover", "fill"].includes(slide.fit) ? slide.fit : "contain";
+    let media;
     if (type === "video") {
-      els.content.innerHTML = `<video id="player-video" src="${slide.url}" autoplay playsinline muted loop style="object-fit:${fit}; background:#000;"></video>`;
-      playTimer = window.setTimeout(next, Number(slide.duration || 30) * 1000);
-      return;
+      media = document.createElement("video");
+      media.id = "player-video";
+      media.autoplay = true;
+      media.playsInline = true;
+      media.muted = true;
+      media.loop = true;
+    } else if (type === "web") {
+      media = document.createElement("iframe");
+      media.setAttribute("sandbox", "allow-same-origin allow-scripts allow-forms allow-popups");
+      media.title = slide.name || "Contenido web";
+    } else {
+      media = document.createElement("img");
+      media.alt = slide.name || "";
+      media.loading = "eager";
+      media.decoding = "async";
     }
-
-    if (type === "web") {
-      els.content.innerHTML = `<iframe src="${slide.url}" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>`;
-      playTimer = window.setTimeout(next, Number(slide.duration || 15) * 1000);
-      return;
-    }
-
-    els.content.innerHTML = `<img src="${slide.url}" alt="" style="object-fit:${fit}; background:transparent;" loading="eager" decoding="async">`;
-    playTimer = window.setTimeout(next, Number(slide.duration || 10) * 1000);
+    if (type !== "web") media.style.objectFit = fit;
+    media.addEventListener("error", () => {
+      if (media.isConnected) showFallback("No se pudo cargar el contenido de esta pantalla.");
+    });
+    media.src = mediaUrl.href;
+    els.content.replaceChildren(media);
   }
 
   function next() {
+    window.clearTimeout(rotationTimer);
     const activeSlides = getActiveSlides();
     if (!activeSlides.length) {
       showFallback("No hay contenido activo en este horario.");
-      els.content.innerHTML = "";
+      els.content.replaceChildren();
       return;
     }
 
@@ -627,11 +692,11 @@
     model = payload;
     lastRevision = payload.revision;
     saveCached(payload);
-    await syncServerTime();
-    await applyWidgets();
+    syncServerTime().then(tickClock).catch(() => {});
     playIndex = 0;
     next();
-    setOnlineState(true);
+    await applyWidgets();
+    prefetchImages(payload.slides || []).catch(() => {});
   }
 
   async function fetchBootstrap() {
@@ -649,9 +714,8 @@
       hideFallback();
       if (data.revision !== lastRevision) {
         await bootFromPayload(data);
-      } else {
-        setOnlineState(true);
       }
+      setOnlineState(true);
     } catch (error) {
       setOnlineState(false);
       if (!model) {
@@ -672,11 +736,51 @@
     }
   }
 
+  let pendingPreview = null;
+  let previewBusy = false;
+  let previewUpdateTimeout = null;
+
+  async function processPreview() {
+    if (previewBusy) return;
+    previewBusy = true;
+    try {
+      while (pendingPreview) {
+        const update = pendingPreview;
+        pendingPreview = null;
+        model = update.model;
+        const slide = model.slides[update.slideIndex];
+        if (slide?.url) {
+          hideFallback();
+          renderSlide(slide);
+        } else {
+          els.content.replaceChildren();
+          showFallback("Agrega un contenido para ver la pantalla.");
+        }
+        await applyWidgets();
+      }
+    } finally {
+      previewBusy = false;
+    }
+  }
+
   async function init() {
-    window.addEventListener("online", () => setOnlineState(true));
-    window.addEventListener("offline", () => setOnlineState(false));
     window.setInterval(tickClock, 1000);
     tickClock();
+    if (previewMode) {
+      window.addEventListener("message", (event) => {
+        if (event.origin !== window.location.origin || event.source !== window.parent) return;
+        const data = event.data;
+        if (data?.type !== "prosignage-preview" || !data.model || !Array.isArray(data.model.slides) || !data.model.widgets) return;
+        pendingPreview = { model: data.model, slideIndex: Number.isInteger(data.slideIndex) ? data.slideIndex : 0 };
+        window.clearTimeout(previewUpdateTimeout);
+        previewUpdateTimeout = window.setTimeout(processPreview, 80);
+      });
+      syncServerTime().then(tickClock).catch(() => {});
+      return;
+    }
+
+    window.addEventListener("online", () => setOnlineState(true));
+    window.addEventListener("offline", () => setOnlineState(false));
     setOnlineState(navigator.onLine);
 
     if (!screenPublicId || !playerKey) {
@@ -695,6 +799,7 @@
     await refreshBootstrap();
     ensureIntervals();
     sendHeartbeat().catch(() => {});
+    prepareOfflineShell().catch(() => {});
   }
 
   init().catch(() => {
