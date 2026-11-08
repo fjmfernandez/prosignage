@@ -32,6 +32,12 @@ after publishing the screen. Open players in the same browser receive the update
 immediately; remote players check for changes every two seconds and keep showing
 their last content during a network outage.
 
+Click content or a visible widget in the preview to open its controls below the
+canvas. The toolbar above the preview also opens controls for hidden widgets.
+The sidebar groups general settings, individual widgets and the playlist in
+collapsible panels. Changes made in the canvas are drafts until you select
+"Publicar cambios".
+
 The weather widget shows a three-day forecast with SVG icons based on
 Open-Meteo's WMO weather codes. The ticker repeats seamlessly and adapts its
 scroll duration to the length of the message.

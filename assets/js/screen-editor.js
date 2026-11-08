@@ -26,11 +26,19 @@
     label: document.getElementById("preview-slide-label"),
     previous: document.getElementById("preview-prev"),
     next: document.getElementById("preview-next"),
+    hitLayer: document.getElementById("canvas-hit-layer"),
+    inspector: document.getElementById("selection-inspector"),
+    inspectorTitle: document.getElementById("selection-title"),
+    inspectorFields: document.getElementById("selection-fields"),
+    inspectorClose: document.getElementById("selection-close"),
   };
   let previewIndex = 0;
   let previewPlayerReady = false;
   let previewWidth = Number(preview.width.value);
   let previewHeight = Number(preview.height.value);
+  let selectedTarget = null;
+  let hitUpdateQueued = false;
+  let previewObserver = null;
 
   const fields = {
     name: document.getElementById("screen-name"),
@@ -127,6 +135,7 @@
     preview.format.textContent = ratioWidth <= 32 && ratioHeight <= 32
       ? `${ratioWidth}:${ratioHeight}`
       : `${previewWidth} × ${previewHeight}`;
+    scheduleHitTargets();
   }
 
   function renderPreview() {
@@ -141,6 +150,7 @@
       card.classList.toggle("is-previewing", Number(card.dataset.index) === previewIndex);
     });
     fitPreview();
+    syncInspectorFields();
     if (previewPlayerReady) {
       preview.player.contentWindow.postMessage({
         type: "prosignage-preview",
@@ -242,6 +252,248 @@
       .replaceAll("'", "&#039;");
   }
 
+  const selectionLabels = {
+    slide: 'Contenido', clock: 'Reloj', ticker: 'Marquesina',
+    weather: 'Tiempo', logo: 'Logo', rss: 'Noticias laterales',
+  };
+  const widgetControls = {
+    clock: [['clockShow', 'Mostrar'], ['clockPos', 'Posición'], ['clockSize', 'Tamaño'], ['clockColor', 'Color']],
+    ticker: [['tickerActive', 'Mostrar'], ['tickerMode', 'Origen'], ['tickerText', 'Texto'], ['tickerRss', 'RSS URL'], ['tickerSpeed', 'Segundos por pantalla'], ['tickerSize', 'Tamaño de letra'], ['tickerColor', 'Color']],
+    weather: [['weatherShow', 'Mostrar'], ['weatherCity', 'Ciudad'], ['weatherLayout', 'Diseño']],
+    logo: [['logoShow', 'Mostrar'], ['logoUrl', 'URL de la imagen'], ['logoPos', 'Posición'], ['logoSize', 'Tamaño (%)']],
+    rss: [['rssShow', 'Mostrar'], ['rssUrl', 'RSS URL'], ['rssPos', 'Posición']],
+  };
+
+  function addBoundControl(key, label) {
+    const source = fields[key];
+    const row = document.createElement('label');
+    row.className = source.type === 'checkbox' ? 'field inline-field' : 'field';
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const control = source.cloneNode(true);
+    control.id = `direct-${key}`;
+    control.dataset.bind = key;
+    control.removeAttribute('name');
+    if (source.type === 'checkbox') control.checked = source.checked;
+    else control.value = source.value;
+    row.append(caption, control);
+    preview.inspectorFields.append(row);
+  }
+
+  function addSlideControl(key, label, type = 'text', options = null) {
+    const slide = state.slides[previewIndex];
+    const row = document.createElement('label');
+    row.className = 'field';
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const control = options ? document.createElement('select') : document.createElement('input');
+    if (options) {
+      for (const [value, name] of options) control.add(new Option(name, value));
+    } else {
+      control.type = type;
+      if (type === 'number') {
+        control.min = '1';
+        control.max = '3600';
+      }
+    }
+    control.dataset.slideField = key;
+    control.value = String(slide[key] ?? '');
+    row.append(caption, control);
+    preview.inspectorFields.append(row);
+  }
+
+  function addInspectorAction(action, label, className = 'btn ghost') {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.dataset.inspectorAction = action;
+    button.textContent = label;
+    preview.inspectorFields.append(button);
+  }
+
+  function addCanvasUpload(kind, label) {
+    const form = document.createElement('form');
+    form.className = 'canvas-upload field';
+    form.innerHTML = `<input type="hidden" name="screen_id" value="${state.id}"><input type="hidden" name="kind" value="${kind}">`;
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.name = 'file';
+    input.accept = kind === 'logo' ? 'image/*' : 'image/*,video/*';
+    input.dataset.canvasUpload = kind;
+    form.append(caption, input);
+    preview.inspectorFields.append(form);
+  }
+
+  function addNewUrlControls(collapsed) {
+    const container = collapsed ? document.createElement('details') : document.createElement('div');
+    container.className = 'inspector-add';
+    if (collapsed) {
+      const summary = document.createElement('summary');
+      summary.textContent = 'Añadir otra URL';
+      container.append(summary);
+    }
+    for (const [key, label, type] of [['name', 'Nombre', 'text'], ['url', 'URL', 'url']]) {
+      const row = document.createElement('label');
+      row.className = 'field';
+      const caption = document.createElement('span');
+      caption.textContent = label;
+      const input = document.createElement('input');
+      input.type = type;
+      input.dataset[`newSlide${key[0].toUpperCase()}${key.slice(1)}`] = '';
+      if (key === 'url') input.placeholder = 'https://...';
+      row.append(caption, input);
+      container.append(row);
+    }
+    const typeRow = document.createElement('label');
+    typeRow.className = 'field';
+    const typeLabel = document.createElement('span');
+    typeLabel.textContent = 'Tipo';
+    const type = document.createElement('select');
+    type.dataset.newSlideType = '';
+    [['image', 'Imagen'], ['video', 'Vídeo'], ['web', 'Web']].forEach(([value, name]) => type.add(new Option(name, value)));
+    typeRow.append(typeLabel, type);
+    container.append(typeRow);
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'btn primary';
+    add.dataset.inspectorAction = 'add-url';
+    add.textContent = 'Añadir contenido';
+    container.append(add);
+    preview.inspectorFields.append(container);
+  }
+
+  function renderInspector() {
+    preview.inspector.hidden = !selectedTarget;
+    preview.inspectorFields.replaceChildren();
+    if (!selectedTarget) {
+      updateSelectionUI();
+      return;
+    }
+    preview.inspectorTitle.textContent = selectionLabels[selectedTarget];
+
+    if (selectedTarget === 'slide') {
+      if (state.slides.length) {
+        addSlideControl('name', 'Nombre');
+        addSlideControl('url', 'Imagen, vídeo o URL', 'url');
+        addSlideControl('type', 'Tipo', 'text', [['image', 'Imagen'], ['video', 'Vídeo'], ['web', 'Web']]);
+        addSlideControl('fit', 'Ajuste', 'text', [['contain', 'Completa'], ['cover', 'Rellenar'], ['fill', 'Estirar']]);
+        addSlideControl('duration', 'Duración (segundos)', 'number');
+        addSlideControl('startTime', 'Desde', 'time');
+        addSlideControl('endTime', 'Hasta', 'time');
+        addInspectorAction('playlist', 'Ver toda la lista y los días');
+        addNewUrlControls(true);
+        addCanvasUpload('media', 'Reemplazar imagen o vídeo');
+      } else {
+        const note = document.createElement('p');
+        note.className = 'inspector-hint';
+        note.textContent = 'Añade una imagen, vídeo o página para empezar.';
+        preview.inspectorFields.append(note);
+        addNewUrlControls(false);
+        addCanvasUpload('media', 'Subir imagen o vídeo');
+      }
+    } else {
+      widgetControls[selectedTarget].forEach(([key, label]) => addBoundControl(key, label));
+      if (selectedTarget === 'logo') addCanvasUpload('logo', 'Subir logo');
+    }
+    updateSelectionUI();
+  }
+
+  function syncInspectorFields() {
+    if (preview.inspector.hidden || preview.inspector.contains(document.activeElement)) return;
+    preview.inspectorFields.querySelectorAll('[data-bind]').forEach((control) => {
+      const source = fields[control.dataset.bind];
+      if (control.type === 'checkbox') control.checked = source.checked;
+      else control.value = source.value;
+    });
+    const slide = state.slides[previewIndex];
+    if (slide) preview.inspectorFields.querySelectorAll('[data-slide-field]').forEach((control) => {
+      control.value = String(slide[control.dataset.slideField] ?? '');
+    });
+  }
+
+  function updateSelectionUI() {
+    document.querySelectorAll('.canvas-toolbar [data-select]').forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.select === selectedTarget));
+    });
+    preview.hitLayer.querySelectorAll('[data-select]').forEach((button) => {
+      button.classList.toggle('selected', button.dataset.select === selectedTarget);
+      button.setAttribute('aria-pressed', String(button.dataset.select === selectedTarget));
+    });
+  }
+
+  function selectTarget(type) {
+    selectedTarget = type;
+    renderInspector();
+    scheduleHitTargets();
+  }
+
+  function scheduleHitTargets() {
+    if (hitUpdateQueued) return;
+    hitUpdateQueued = true;
+    requestAnimationFrame(() => {
+      hitUpdateQueued = false;
+      syncHitTargets();
+    });
+  }
+
+  function syncHitTargets() {
+    if (!previewPlayerReady || !preview.player.contentDocument) return;
+    const doc = preview.player.contentDocument;
+    const scaleX = preview.stage.clientWidth / previewWidth;
+    const scaleY = preview.stage.clientHeight / previewHeight;
+    const targets = [
+      ['slide', '#content'], ['clock', '#clock'], ['logo', '#logo'],
+      ['weather', '#weather, #weather-vertical'], ['ticker', '#ticker'],
+      ['rss', '#rss-sidebar'],
+    ];
+    for (const [type, selector] of targets) {
+      let button = preview.hitLayer.querySelector(`[data-select="${type}"]`);
+      if (!button) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'canvas-hit';
+        button.dataset.select = type;
+        button.setAttribute('aria-label', `Editar ${selectionLabels[type].toLowerCase()}`);
+        button.innerHTML = `<span>${escapeHtml(selectionLabels[type])}</span>`;
+        preview.hitLayer.append(button);
+      }
+      const element = Array.from(doc.querySelectorAll(selector)).find((candidate) =>
+        doc.defaultView.getComputedStyle(candidate).display !== 'none' && candidate.getBoundingClientRect().width > 0
+      );
+      button.hidden = !element;
+      if (!element) continue;
+      const rect = element.getBoundingClientRect();
+      button.style.left = `${Math.max(0, rect.left * scaleX)}px`;
+      button.style.top = `${Math.max(0, rect.top * scaleY)}px`;
+      button.style.width = `${Math.min(preview.stage.clientWidth, rect.width * scaleX)}px`;
+      button.style.height = `${Math.min(preview.stage.clientHeight, rect.height * scaleY)}px`;
+    }
+    updateSelectionUI();
+  }
+
+  function observePreviewPlayer() {
+    previewObserver?.disconnect();
+    const doc = preview.player.contentDocument;
+    if (!doc?.body) return;
+    previewObserver = new MutationObserver(scheduleHitTargets);
+    previewObserver.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] });
+    doc.addEventListener('load', scheduleHitTargets, true);
+    scheduleHitTargets();
+  }
+
+  function openSidebarPanel(name, widget = null) {
+    const panel = document.querySelector(`.editor-sidebar [data-panel="${name}"]`);
+    if (!panel) return;
+    panel.open = true;
+    if (widget) {
+      const inner = panel.querySelector(`[data-widget="${widget}"]`);
+      if (inner) inner.open = true;
+    }
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   function addSlide(slide) {
     state.slides.push({
       name: slide.name || `Slide ${state.slides.length + 1}`,
@@ -253,7 +505,11 @@
       startTime: slide.startTime || "00:00",
       endTime: slide.endTime || "23:59",
     });
+    previewIndex = state.slides.length - 1;
+    selectedTarget = 'slide';
     renderPlaylist();
+    renderInspector();
+    publishStatus.textContent = 'Cambios sin publicar.';
   }
 
   function swapSlides(a, b) {
@@ -264,6 +520,7 @@
     state.slides[a] = state.slides[b];
     state.slides[b] = temp;
     renderPlaylist();
+    publishStatus.textContent = 'Cambios sin publicar.';
   }
 
   async function saveScreen() {
@@ -338,6 +595,7 @@
     if (card) {
       previewIndex = Number(card.dataset.index);
       renderPreview();
+      if (selectedTarget === 'slide') renderInspector();
     }
     const action = event.target.closest("[data-action]");
     if (!action) {
@@ -353,6 +611,8 @@
       case "remove":
         state.slides.splice(index, 1);
         renderPlaylist();
+        if (selectedTarget === 'slide') renderInspector();
+        publishStatus.textContent = 'Cambios sin publicar.';
         break;
       case "move-up":
         swapSlides(index, index - 1);
@@ -409,14 +669,106 @@
   preview.previous.addEventListener("click", () => {
     previewIndex -= 1;
     renderPreview();
+    if (selectedTarget === 'slide') renderInspector();
   });
   preview.next.addEventListener("click", () => {
     previewIndex += 1;
     renderPreview();
+    if (selectedTarget === 'slide') renderInspector();
   });
-  preview.player.addEventListener("load", () => {
+  function onPreviewLoad() {
     previewPlayerReady = true;
+    observePreviewPlayer();
     renderPreview();
+  }
+  preview.player.addEventListener("load", onPreviewLoad);
+  if (preview.player.contentDocument?.readyState === 'complete') onPreviewLoad();
+  preview.hitLayer.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-select]');
+    if (button) selectTarget(button.dataset.select);
+  });
+  document.querySelector('.canvas-toolbar').addEventListener('click', (event) => {
+    const button = event.target.closest('[data-select]');
+    if (button) selectTarget(button.dataset.select);
+  });
+  preview.inspectorClose.addEventListener('click', () => selectTarget(null));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && selectedTarget) selectTarget(null);
+  });
+  preview.inspectorFields.addEventListener('input', (event) => {
+    const control = event.target;
+    if (control.matches('[data-new-slide-url]')) control.setCustomValidity('');
+    const key = control.dataset.bind;
+    if (key && fields[key]) {
+      if (control.type === 'checkbox') fields[key].checked = control.checked;
+      else fields[key].value = control.value;
+      renderPreview();
+      publishStatus.textContent = 'Cambios sin publicar.';
+      return;
+    }
+    const slideField = control.dataset.slideField;
+    if (slideField && state.slides[previewIndex]) {
+      state.slides[previewIndex][slideField] = slideField === 'duration' ? Number(control.value || 10) : control.value;
+      const sidebarField = playlistEl.querySelector(`[data-index="${previewIndex}"][data-field="${slideField}"]`);
+      if (sidebarField) sidebarField.value = control.value;
+      renderPreview();
+      publishStatus.textContent = 'Cambios sin publicar.';
+    }
+  });
+  preview.inspectorFields.addEventListener('click', (event) => {
+    const action = event.target.closest('[data-inspector-action]')?.dataset.inspectorAction;
+    if (action === 'playlist') openSidebarPanel('playlist');
+    if (action === 'add-url') {
+      const input = preview.inspectorFields.querySelector('[data-new-slide-url]');
+      const url = input?.value.trim();
+      if (!url) {
+        input?.focus();
+        input?.setCustomValidity('Introduce una URL.');
+        input?.reportValidity();
+        return;
+      }
+      addSlide({
+        name: preview.inspectorFields.querySelector('[data-new-slide-name]')?.value.trim() || 'Nuevo contenido',
+        url,
+        type: preview.inspectorFields.querySelector('[data-new-slide-type]')?.value || 'image',
+      });
+      publishStatus.textContent = 'Cambios sin publicar.';
+    }
+  });
+  preview.inspectorFields.addEventListener('change', async (event) => {
+    const input = event.target;
+    const kind = input.dataset.canvasUpload;
+    if (!kind || !input.files?.length) return;
+    const replacementIndex = kind === 'media' && selectedTarget === 'slide' && state.slides.length ? previewIndex : -1;
+    try {
+      if (input.dataset.uploading === '1') return;
+      input.dataset.uploading = '1';
+      publishStatus.textContent = 'Subiendo archivo...';
+      await uploadFile(input.closest('form'), (asset) => {
+        if (kind === 'logo') {
+          fields.logoUrl.value = asset.url;
+          fields.logoShow.checked = true;
+          renderPreview();
+          renderInspector();
+        } else if (replacementIndex >= 0 && state.slides[replacementIndex]) {
+          state.slides[replacementIndex].url = asset.url;
+          state.slides[replacementIndex].type = asset.type || 'image';
+          renderPlaylist();
+          renderInspector();
+        } else {
+          addSlide({
+            name: asset.name || 'Archivo subido', url: asset.url,
+            type: asset.type || 'image', fit: 'contain',
+            duration: asset.type === 'video' ? 30 : 10,
+          });
+        }
+      });
+      publishStatus.textContent = 'Archivo listo. Pulsa «Publicar cambios».';
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      delete input.dataset.uploading;
+    }
   });
   preview.width.addEventListener("input", fitPreview);
   preview.height.addEventListener("input", fitPreview);
@@ -431,7 +783,10 @@
     fitPreview();
   });
   document.querySelectorAll(".editor-sidebar input, .editor-sidebar select, .editor-sidebar textarea").forEach((field) => {
-    field.addEventListener("input", renderPreview);
+    field.addEventListener("input", () => {
+      renderPreview();
+      if (!field.readOnly && field.type !== 'file') publishStatus.textContent = 'Cambios sin publicar.';
+    });
     field.addEventListener("change", renderPreview);
   });
 
@@ -481,6 +836,7 @@
         fields.logoUrl.value = asset.url;
         fields.logoShow.checked = true;
         renderPreview();
+        publishStatus.textContent = 'Cambios sin publicar.';
       });
     } catch (error) {
       alert(error.message);

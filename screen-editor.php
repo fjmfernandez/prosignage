@@ -27,9 +27,11 @@ render_header('Editor de pantalla');
     </div>
 
     <div class="editor-layout">
-        <aside class="editor-sidebar">
-            <div class="stack">
-                <h2>Configuracion general</h2>
+        <aside class="editor-sidebar" aria-label="Ajustes avanzados">
+            <div class="sidebar-sections">
+                <details class="editor-accordion" data-panel="general">
+                    <summary>Configuración general</summary>
+                    <div class="editor-accordion-body stack">
                 <label class="field">
                     <span>Nombre de la pantalla</span>
                     <input type="text" id="screen-name" value="<?= e($fullScreen['name']) ?>">
@@ -46,19 +48,23 @@ render_header('Editor de pantalla');
                     <input type="text" readonly value="<?= e(screen_player_url($fullScreen)) ?>" data-copy-source>
                     <button type="button" class="btn ghost" data-copy-button>Copiar URL</button>
                 </div>
+                    </div>
+                </details>
 
-                <h2>Widgets</h2>
+                <details class="editor-accordion" data-panel="widgets">
+                    <summary>Widgets de pantalla</summary>
+                    <div class="editor-accordion-body stack">
 
-                <div class="compact-card stack">
-                    <strong>Reloj</strong>
+                <details class="widget-accordion compact-card" data-widget="clock">
+                    <summary>Reloj</summary><div class="stack">
                     <label class="field inline-field"><span>Mostrar</span><input type="checkbox" id="clock-show" <?= !empty($fullScreen['widgets']['clock']['show']) ? 'checked' : '' ?>></label>
                     <label class="field"><span>Posicion</span><select id="clock-pos"><option value="pos-top-right">Arriba derecha</option><option value="pos-top-left">Arriba izquierda</option><option value="pos-top-center">Arriba centro</option></select></label>
                     <label class="field"><span>Tamano</span><select id="clock-size"><option value="small">Pequeno</option><option value="medium">Mediano</option><option value="large">Grande</option></select></label>
                     <label class="field"><span>Color</span><input type="color" id="clock-color" value="<?= e($fullScreen['widgets']['clock']['color']) ?>"></label>
-                </div>
+                    </div></details>
 
-                <div class="compact-card stack">
-                    <strong>Ticker</strong>
+                <details class="widget-accordion compact-card" data-widget="ticker">
+                    <summary>Marquesina</summary><div class="stack">
                     <label class="field inline-field"><span>Activo</span><input type="checkbox" id="ticker-active" <?= !empty($fullScreen['widgets']['ticker']['active']) ? 'checked' : '' ?>></label>
                     <label class="field"><span>Modo</span><select id="ticker-mode"><option value="manual">Manual</option><option value="rss">RSS</option></select></label>
                     <label class="field"><span>Texto</span><textarea id="ticker-text" rows="3"><?= e($fullScreen['widgets']['ticker']['text']) ?></textarea></label>
@@ -66,17 +72,17 @@ render_header('Editor de pantalla');
                     <label class="field"><span>Velocidad (segundos por pantalla)</span><input type="number" id="ticker-speed" min="8" max="120" value="<?= (int)$fullScreen['widgets']['ticker']['speed'] ?>"></label>
                     <label class="field"><span>Tamano fuente</span><input type="number" id="ticker-size" min="10" max="40" value="<?= (int)$fullScreen['widgets']['ticker']['fontSize'] ?>"></label>
                     <label class="field"><span>Color</span><input type="color" id="ticker-color" value="<?= e($fullScreen['widgets']['ticker']['color']) ?>"></label>
-                </div>
+                    </div></details>
 
-                <div class="compact-card stack">
-                    <strong>Tiempo</strong>
+                <details class="widget-accordion compact-card" data-widget="weather">
+                    <summary>Tiempo</summary><div class="stack">
                     <label class="field inline-field"><span>Mostrar</span><input type="checkbox" id="weather-show" <?= !empty($fullScreen['widgets']['weather']['show']) ? 'checked' : '' ?>></label>
                     <label class="field"><span>Ciudad</span><input type="text" id="weather-city" value="<?= e($fullScreen['widgets']['weather']['city']) ?>"></label>
                     <label class="field"><span>Layout</span><select id="weather-layout"><option value="horizontal">Horizontal</option><option value="vertical">Vertical</option></select></label>
-                </div>
+                    </div></details>
 
-                <div class="compact-card stack">
-                    <strong>Logo</strong>
+                <details class="widget-accordion compact-card" data-widget="logo">
+                    <summary>Logo</summary><div class="stack">
                     <label class="field inline-field"><span>Mostrar</span><input type="checkbox" id="logo-show" <?= !empty($fullScreen['widgets']['logo']['show']) ? 'checked' : '' ?>></label>
                     <label class="field"><span>URL</span><input type="url" id="logo-url" value="<?= e($fullScreen['widgets']['logo']['url']) ?>"></label>
                     <label class="field"><span>Posicion</span><select id="logo-pos"><option value="pos-top-left">Arriba izquierda</option><option value="pos-top-right">Arriba derecha</option><option value="pos-top-center">Arriba centro</option></select></label>
@@ -87,17 +93,21 @@ render_header('Editor de pantalla');
                         <label class="field"><span>Subir logo</span><input type="file" name="file" accept="image/*"></label>
                         <button type="submit" class="btn ghost">Subir logo</button>
                     </form>
-                </div>
+                    </div></details>
 
-                <div class="compact-card stack">
-                    <strong>RSS lateral</strong>
+                <details class="widget-accordion compact-card" data-widget="rss">
+                    <summary>Noticias laterales</summary><div class="stack">
                     <label class="field inline-field"><span>Mostrar</span><input type="checkbox" id="rss-show" <?= !empty($fullScreen['widgets']['rssSidebar']['show']) ? 'checked' : '' ?>></label>
                     <label class="field"><span>RSS URL</span><input type="url" id="rss-url" value="<?= e($fullScreen['widgets']['rssSidebar']['url']) ?>"></label>
                     <label class="field"><span>Posicion</span><select id="rss-pos"><option value="pos-top-right">Arriba</option><option value="pos-middle-right">Centro</option><option value="pos-bottom-right">Abajo</option></select></label>
-                </div>
-                <section class="editor-playlist stack">
+                    </div></details>
+                    </div>
+                </details>
+                <details class="editor-accordion" data-panel="playlist">
+                    <summary>Lista de reproducción</summary>
+                    <div class="editor-accordion-body stack editor-playlist">
                 <div class="section-head">
-                    <h2>Playlist</h2>
+                    <h2>Contenido</h2>
                     <button type="button" class="btn primary" id="add-url-slide">Agregar URL</button>
                 </div>
 
@@ -115,7 +125,8 @@ render_header('Editor de pantalla');
                 </form>
 
                 <div id="playlist-editor" class="playlist-stack"></div>
-                </section>
+                    </div>
+                </details>
             </div>
         </aside>
 
@@ -130,17 +141,36 @@ render_header('Editor de pantalla');
                     <span id="preview-format" class="preview-format"><?= $fullScreen['orientation'] === 'portrait' ? '9:16' : '16:9' ?></span>
                 </div>
             </div>
+            <div class="canvas-toolbar" role="toolbar" aria-label="Elementos de la pantalla">
+                <span>Editar en pantalla</span>
+                <button type="button" data-select="slide">Contenido</button>
+                <button type="button" data-select="clock">Reloj</button>
+                <button type="button" data-select="ticker">Marquesina</button>
+                <button type="button" data-select="weather">Tiempo</button>
+                <button type="button" data-select="logo">Logo</button>
+                <button type="button" data-select="rss">Noticias</button>
+            </div>
+            <div class="preview-workspace">
             <div class="preview-canvas-wrap">
                 <div id="editor-stage" class="editor-stage">
                     <iframe id="preview-player" title="Player de vista previa" src="<?= e(app_url('player.php?preview=1&id=' . (int)$fullScreen['id'])) ?>"></iframe>
+                    <div id="canvas-hit-layer" class="canvas-hit-layer" aria-label="Elementos seleccionables"></div>
                 </div>
+            </div>
+            <section id="selection-inspector" class="selection-inspector" aria-label="Editar elemento seleccionado" hidden>
+                <div class="selection-inspector-head">
+                    <div><span class="eyebrow">Elemento seleccionado</span><h3 id="selection-title"></h3></div>
+                    <button type="button" class="btn ghost small" id="selection-close" aria-label="Cerrar ajustes">Cerrar</button>
+                </div>
+                <div id="selection-fields" class="selection-fields"></div>
+            </section>
             </div>
             <div class="preview-controls">
                 <button type="button" class="btn ghost small" id="preview-prev" aria-label="Slide anterior">← Anterior</button>
                 <span id="preview-slide-label">Sin contenido</span>
                 <button type="button" class="btn ghost small" id="preview-next" aria-label="Slide siguiente">Siguiente →</button>
             </div>
-            <p class="preview-note">La vista previa usa el mismo player. Introduce la resolucion real de tu pantalla para comprobar el tamano exacto de textos y widgets.</p>
+            <p class="preview-note">Haz clic en una imagen o widget para editarlo aquí. Los cambios se ven al instante; pulsa «Publicar cambios» para enviarlos a los players.</p>
         </section>
     </div>
 </section>
@@ -159,4 +189,4 @@ window.PROSIGNAGE_ENDPOINTS = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 window.PROSIGNAGE_CSRF = <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 </script>
-<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=live-weather-3')]); ?>
+<?php render_footer([app_url('assets/js/admin.js?v=sql1'), app_url('assets/js/screen-editor.js?v=canvas-editor-1')]); ?>

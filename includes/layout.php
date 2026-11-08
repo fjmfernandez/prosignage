@@ -21,7 +21,7 @@ function render_header(string $title, string $active = 'dashboard'): void
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=live-weather-3')) ?>">
+    <link rel="stylesheet" href="<?= e(app_url('assets/css/app.css?v=canvas-editor-1')) ?>">
 </head>
 <body>
 <?php if ($user): ?>
