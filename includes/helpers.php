@@ -88,7 +88,11 @@ function app_name(): string
 
 function app_logo_url(): string
 {
-    return (string)(app_config()['brand']['logo_url'] ?? '');
+    $url = (string)(app_config()['brand']['logo_url'] ?? '');
+    if ($url === 'https://www.entelsat.com/wp-content/uploads/2018/11/logo_entelsat_144.png') {
+        return 'https://www.entelsat.com/assets/img/logo-entelsat.png';
+    }
+    return $url;
 }
 
 function app_url(string $path = ''): string

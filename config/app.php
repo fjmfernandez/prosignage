@@ -11,7 +11,7 @@ return [
     'installed' => $installed,
     'base_url' => rtrim(getenv('APP_BASE_URL') ?: '', '/'),
     'brand' => [
-        'logo_url' => getenv('APP_LOGO_URL') ?: 'https://www.entelsat.com/wp-content/uploads/2018/11/logo_entelsat_144.png',
+        'logo_url' => getenv('APP_LOGO_URL') ?: 'https://www.entelsat.com/assets/img/logo-entelsat.png',
     ],
     'db' => [
         'host' => getenv('DB_HOST') ?: '127.0.0.1',
